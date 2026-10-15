@@ -1,5 +1,23 @@
 [
   {
+    "id": "usr-1792070557507-wcm01",
+    "email": "budi22@gmail.com",
+    "full_name": "budiono",
+    "phone_number": "6285793546771",
+    "phone_verified": true,
+    "telegram_chat_id": null,
+    "telegram_username": null,
+    "plan": "starter",
+    "role": "user",
+    "approval_status": "approved",
+    "currency": "IDR",
+    "monthly_tx_count": 0,
+    "last_tx_month": "2026-10",
+    "created_at": "2026-10-15T13:22:37.507Z",
+    "updated_at": "2026-10-15T13:23:10.082Z",
+    "password_hash": "budi22euy"
+  },
+  {
     "id": "usr-1792061186757-bmyft",
     "email": "bangkong22@gmail.com",
     "full_name": "Bangkong Perkasa",
