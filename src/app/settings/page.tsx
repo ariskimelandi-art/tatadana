@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardLayoutWrapper } from "@/components/dashboard/DashboardLayoutWrapper";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -39,7 +39,7 @@ const PRESET_AVATARS = [
   "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80",
 ];
 
-export default function SettingsPage() {
+function SettingsContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "telegram";
   const [activeTab, setActiveTab] = useState<"profile" | "telegram" | "reminder" | "categories" | "subscription">(
@@ -1146,5 +1146,17 @@ export default function SettingsPage() {
         )}
       </div>
     </DashboardLayoutWrapper>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   );
 }
