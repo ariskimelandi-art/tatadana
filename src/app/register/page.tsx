@@ -61,6 +61,32 @@ export default function RegisterPage() {
       localStorage.setItem("tatadana_user_name", fullName);
       document.cookie = `tatadana_user_email=${encodeURIComponent(cleanEmail)}; path=/; max-age=86400`;
 
+      // Save to localStorage pending registrations for immediate sync with admin dashboard
+      try {
+        const storedPending = JSON.parse(localStorage.getItem("tatadana_pending_registrations") || "[]");
+        const pendingEntry = {
+          id: regData.user?.id || `usr-${Date.now()}`,
+          full_name: fullName.trim(),
+          email: cleanEmail,
+          phone_number: cleanPhone,
+          phone_verified: true,
+          plan: "starter",
+          role: "user",
+          approval_status: "pending",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const existingIdx = storedPending.findIndex((u: any) => u.email?.toLowerCase() === cleanEmail);
+        if (existingIdx >= 0) {
+          storedPending[existingIdx] = pendingEntry;
+        } else {
+          storedPending.unshift(pendingEntry);
+        }
+        localStorage.setItem("tatadana_pending_registrations", JSON.stringify(storedPending));
+      } catch (e) {
+        // ignore
+      }
+
       // 2. Supabase Auth Sign Up (fallback-safe)
       try {
         await supabase.auth.signUp({

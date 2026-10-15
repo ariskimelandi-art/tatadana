@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateStoredUserApproval, findStoredUserById, findStoredUserByEmail } from "@/lib/storage/local-users";
 import { getAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function POST(req: NextRequest) {
   try {
     const { userId, action, adminEmail } = await req.json();

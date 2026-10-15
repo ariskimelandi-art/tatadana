@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { findStoredUserByEmail, findStoredUserById } from "@/lib/storage/local-users";
 import { getAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

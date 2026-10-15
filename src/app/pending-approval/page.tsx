@@ -43,7 +43,9 @@ function PendingApprovalContent() {
     async function checkStatus(targetEmail: string) {
       if (!targetEmail) return;
       try {
-        const res = await fetch(`/api/auth/approval-status?email=${encodeURIComponent(targetEmail)}`);
+        const res = await fetch(`/api/auth/approval-status?email=${encodeURIComponent(targetEmail)}`, {
+          cache: "no-store",
+        });
         const data = await res.json();
         if (data.ok) {
           if (data.full_name) setUserName(data.full_name);
@@ -72,7 +74,9 @@ function PendingApprovalContent() {
     const queryEmail = email || localStorage.getItem("tatadana_user_email") || "";
 
     try {
-      const res = await fetch(`/api/auth/approval-status?email=${encodeURIComponent(queryEmail)}`);
+      const res = await fetch(`/api/auth/approval-status?email=${encodeURIComponent(queryEmail)}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
 
       if (data.ok && data.is_approved) {

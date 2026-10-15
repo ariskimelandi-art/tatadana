@@ -63,7 +63,9 @@ export function DashboardLayoutWrapper({ children }: DashboardLayoutWrapperProps
 
       if (storedEmail) {
         try {
-          const res = await fetch(`/api/auth/approval-status?email=${encodeURIComponent(storedEmail)}`);
+          const res = await fetch(`/api/auth/approval-status?email=${encodeURIComponent(storedEmail)}`, {
+            cache: "no-store",
+          });
           const data = await res.json();
           if (data.ok) {
             if (data.is_approved) {

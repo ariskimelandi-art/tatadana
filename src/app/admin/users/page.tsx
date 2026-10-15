@@ -25,15 +25,58 @@ export default function AdminUsersPage() {
   }, []);
 
   async function loadUsers() {
+    let combinedUsers: Profile[] = [];
+
     try {
-      const res = await fetch("/api/admin/users/list");
+      const res = await fetch("/api/admin/users/list", { cache: "no-store" });
       const data = await res.json();
-      if (data.ok && Array.isArray(data.users) && data.users.length > 0) {
-        setUsers(data.users);
-        return;
+      if (data.ok && Array.isArray(data.users)) {
+        combinedUsers = [...data.users];
       }
     } catch (e) {
       console.warn("Could not load /api/admin/users/list:", e);
+    }
+
+    // Merge with any client-stored pending registrations
+    try {
+      const rawPending = localStorage.getItem("tatadana_pending_registrations");
+      if (rawPending) {
+        const localPendingList = JSON.parse(rawPending);
+        if (Array.isArray(localPendingList)) {
+          const userMap = new Map(combinedUsers.map((u) => [u.email?.toLowerCase(), u]));
+          let hasNewSync = false;
+
+          for (const lp of localPendingList) {
+            const email = lp.email?.toLowerCase();
+            if (email && !userMap.has(email)) {
+              combinedUsers.unshift(lp);
+              hasNewSync = true;
+            } else if (email && userMap.has(email)) {
+              // Ensure approval_status reflects latest state
+              const existing = userMap.get(email);
+              if (existing && lp.approval_status && lp.approval_status !== existing.approval_status) {
+                existing.approval_status = lp.approval_status;
+              }
+            }
+          }
+
+          // If there were local users not yet on server, sync to server in background
+          if (hasNewSync) {
+            fetch("/api/admin/users/list", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ users: localPendingList }),
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {
+      // LocalStorage error ignored
+    }
+
+    if (combinedUsers.length > 0) {
+      setUsers(combinedUsers);
+      return;
     }
 
     const supabase = createClient();
@@ -66,11 +109,26 @@ export default function AdminUsersPage() {
       if (data.ok) {
         setUsers((prev) =>
           prev.map((u) =>
-            u.id === targetUser.id
+            u.id === targetUser.id || (u.email && u.email.toLowerCase() === targetUser.email?.toLowerCase())
               ? { ...u, approval_status: action === "approve" ? "approved" : "rejected" }
               : u
           )
         );
+
+        // Update in localStorage
+        try {
+          const rawPending = localStorage.getItem("tatadana_pending_registrations");
+          if (rawPending) {
+            const list = JSON.parse(rawPending);
+            const updated = list.map((u: any) =>
+              u.id === targetUser.id || u.email?.toLowerCase() === targetUser.email?.toLowerCase()
+                ? { ...u, approval_status: action === "approve" ? "approved" : "rejected" }
+                : u
+            );
+            localStorage.setItem("tatadana_pending_registrations", JSON.stringify(updated));
+          }
+        } catch {}
+
         setFeedbackMsg({
           text: action === "approve"
             ? `✅ Akun ${targetUser.full_name} (${targetUser.email || targetUser.phone_number}) berhasil disetujui! Pengguna kini dapat mengakses dashboard.`

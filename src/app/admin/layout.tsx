@@ -22,6 +22,7 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "geninggkimteaa@gmail
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
   useEffect(() => {
     // Check admin session from cookies and localStorage
@@ -40,6 +41,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       localUserEmail?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     setIsAdminAuthenticated(!!isAuthenticated);
+
+    // Check pending users count for notification badge
+    async function checkPendingCount() {
+      try {
+        let count = 0;
+        const res = await fetch("/api/admin/users/list", { cache: "no-store" });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.users)) {
+          count = data.users.filter(
+            (u: any) => u.approval_status === "pending" && u.role !== "admin" && u.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()
+          ).length;
+        }
+
+        try {
+          const rawPending = localStorage.getItem("tatadana_pending_registrations");
+          if (rawPending) {
+            const local = JSON.parse(rawPending);
+            if (Array.isArray(local)) {
+              const pendingLocal = local.filter((u: any) => u.approval_status === "pending");
+              count = Math.max(count, pendingLocal.length);
+            }
+          }
+        } catch {}
+
+        setPendingCount(count);
+      } catch {}
+    }
+
+    if (isAuthenticated) {
+      checkPendingCount();
+    }
   }, []);
 
   const handleAdminLogout = () => {
@@ -198,6 +230,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <Icon className="w-4 h-4 text-brand-400" />
               <span>{item.label}</span>
+              {item.href === "/admin/users" && pendingCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-zinc-950 font-black text-[10px] animate-pulse">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}

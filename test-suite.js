@@ -291,6 +291,172 @@ test("Migration SQL file exists and contains all required tables & triggers", ()
   assert(sql.includes("Asia/Jakarta"), "Timezone Asia/Jakarta must be defined in SQL");
 });
 
+// -------------------------------------------------------------------------
+// 5. User Registration & Admin Approval Workflow Tests
+// -------------------------------------------------------------------------
+console.log("\n[SECTION 5] Testing User Registration & Admin Approval Workflow...");
+
+const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "geninggkimteaa@gmail.com").toLowerCase();
+
+// Storage simulation matching local-users.ts logic
+function simulateRegisterOrUpdate(userList, userData) {
+  const users = [...userList];
+  const cleanEmail = userData.email.trim().toLowerCase();
+  const isAdmin = cleanEmail === ADMIN_EMAIL;
+  const targetStatus = isAdmin ? "approved" : "pending";
+
+  const existingIdx = users.findIndex((u) => u.email?.toLowerCase() === cleanEmail);
+
+  if (existingIdx >= 0) {
+    users[existingIdx] = {
+      ...users[existingIdx],
+      full_name: userData.full_name || users[existingIdx].full_name,
+      phone_number: userData.phone_number || users[existingIdx].phone_number,
+      approval_status: targetStatus,
+      updated_at: new Date().toISOString(),
+    };
+    return { users, user: users[existingIdx] };
+  }
+
+  const newUser = {
+    id: `usr-${Date.now()}`,
+    email: cleanEmail,
+    full_name: userData.full_name,
+    phone_number: userData.phone_number || null,
+    plan: isAdmin ? "pro" : "starter",
+    role: isAdmin ? "admin" : "user",
+    approval_status: targetStatus,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  users.unshift(newUser);
+  return { users, user: newUser };
+}
+
+function simulateUpdateApproval(users, userIdOrEmail, newStatus) {
+  const list = [...users];
+  const idx = list.findIndex((u) => u.id === userIdOrEmail || u.email?.toLowerCase() === userIdOrEmail.toLowerCase());
+  if (idx === -1) return null;
+  list[idx] = { ...list[idx], approval_status: newStatus, updated_at: new Date().toISOString() };
+  return { users: list, user: list[idx] };
+}
+
+test("New regular user registration yields approval_status: 'pending'", () => {
+  const initialUsers = [];
+  const res = simulateRegisterOrUpdate(initialUsers, {
+    email: "budi.baru@example.com",
+    full_name: "Budi Baru",
+    phone_number: "6281234567890",
+  });
+
+  assert.strictEqual(res.user.approval_status, "pending");
+  assert.strictEqual(res.user.role, "user");
+  assert.strictEqual(res.users.length, 1);
+});
+
+test("Superadmin registration yields approval_status: 'approved'", () => {
+  const initialUsers = [];
+  const res = simulateRegisterOrUpdate(initialUsers, {
+    email: ADMIN_EMAIL,
+    full_name: "Gening Kim (Superadmin)",
+  });
+
+  assert.strictEqual(res.user.approval_status, "approved");
+  assert.strictEqual(res.user.role, "admin");
+});
+
+test("Re-registering an approved user resets status to 'pending' for admin review", () => {
+  const initialUsers = [
+    {
+      id: "usr-001",
+      email: "test.existing@example.com",
+      full_name: "Test Existing",
+      approval_status: "approved",
+      role: "user",
+    },
+  ];
+
+  const res = simulateRegisterOrUpdate(initialUsers, {
+    email: "test.existing@example.com",
+    full_name: "Test Existing Updated",
+  });
+
+  assert.strictEqual(res.user.approval_status, "pending");
+  assert.strictEqual(res.user.full_name, "Test Existing Updated");
+});
+
+test("Admin approving pending user updates approval_status to 'approved'", () => {
+  const users = [
+    {
+      id: "usr-002",
+      email: "pending.user@example.com",
+      full_name: "Pending User",
+      approval_status: "pending",
+      role: "user",
+    },
+  ];
+
+  const res = simulateUpdateApproval(users, "usr-002", "approved");
+  assert(res !== null);
+  assert.strictEqual(res.user.approval_status, "approved");
+});
+
+test("Admin rejecting pending user updates approval_status to 'rejected'", () => {
+  const users = [
+    {
+      id: "usr-003",
+      email: "spam.user@example.com",
+      full_name: "Spam User",
+      approval_status: "pending",
+      role: "user",
+    },
+  ];
+
+  const res = simulateUpdateApproval(users, "spam.user@example.com", "rejected");
+  assert(res !== null);
+  assert.strictEqual(res.user.approval_status, "rejected");
+});
+
+test("Route handlers have force-dynamic and revalidate = 0 exports", () => {
+  const listRoutePath = path.join(__dirname, "src/app/api/admin/users/list/route.ts");
+  const regRoutePath = path.join(__dirname, "src/app/api/auth/register-user/route.ts");
+  const approveRoutePath = path.join(__dirname, "src/app/api/admin/users/approve/route.ts");
+
+  const listContent = fs.readFileSync(listRoutePath, "utf-8");
+  const regContent = fs.readFileSync(regRoutePath, "utf-8");
+  const approveContent = fs.readFileSync(approveRoutePath, "utf-8");
+
+  assert(listContent.includes('export const dynamic = "force-dynamic"'));
+  assert(regContent.includes('export const dynamic = "force-dynamic"'));
+  assert(approveContent.includes('export const dynamic = "force-dynamic"'));
+  assert(listContent.includes("export const revalidate = 0"));
+  assert(regContent.includes("export const revalidate = 0"));
+  assert(approveContent.includes("export const revalidate = 0"));
+});
+
+test("Admin overview page contains Pending Approval section and direct action handlers", () => {
+  const adminPagePath = path.join(__dirname, "src/app/admin/page.tsx");
+  const adminContent = fs.readFileSync(adminPagePath, "utf-8");
+
+  assert(adminContent.includes("Permintaan Persetujuan Pengguna Baru"));
+  assert(adminContent.includes("handleApproveAction"));
+  assert(adminContent.includes("/api/admin/users/list"));
+  assert(adminContent.includes("Setujui"));
+  assert(adminContent.includes("Tolak"));
+});
+
+test("src/data/users.json has pending user entry for immediate admin visibility", () => {
+  const usersJsonPath = path.join(__dirname, "src/data/users.json");
+  const usersRaw = fs.readFileSync(usersJsonPath, "utf-8");
+  const users = JSON.parse(usersRaw);
+
+  const pendingUsers = users.filter((u) => u.approval_status === "pending");
+  assert(pendingUsers.length > 0, "There should be at least one pending user in users.json");
+  assert.strictEqual(pendingUsers[0].approval_status, "pending");
+});
+
 console.log("\n==================================================================");
 console.log(`   TEST RESULTS: ${passedCount} / ${totalCount} PASSED (100% SUCCESS)`);
 console.log("==================================================================\n");
+

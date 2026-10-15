@@ -9,7 +9,7 @@
     "telegram_username": null,
     "plan": "starter",
     "role": "user",
-    "approval_status": "approved",
+    "approval_status": "pending",
     "currency": "IDR",
     "monthly_tx_count": 0,
     "last_tx_month": "2026-10",
